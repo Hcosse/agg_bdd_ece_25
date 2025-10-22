@@ -1,0 +1,4 @@
+site :
+  - name: osteoweb
+    base_url: "https://www.osteoweb.fr"
+    start_url: "https://www.osteoweb.fr/remplacement"
