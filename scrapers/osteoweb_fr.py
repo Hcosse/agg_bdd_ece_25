@@ -30,12 +30,21 @@ def get_info_remplacement():
         soup = BeautifulSoup(r.text, "html.parser")
 
         titre = soup.find("title").get_text()
+        desription = soup.find("meta", {"name": "description"})["content"]
         
         
         data.append({
             "titre": titre,
+            "description": desription,
             "lien": lien,
         })
+
+    for item in data:
+        print(item["titre"])
+        print(item["lien"])
+        print(item["description"])
+        print("-" * 40)
+            
     return data
 
 
