@@ -31,18 +31,38 @@ def get_info_remplacement():
 
         titre = soup.find("title").get_text()
         desription = soup.find("meta", {"name": "description"})["content"]
+
+        departement = soup.find("b",string=lambda s: s and "Localisation" in s)
+        departement= departement.next_sibling.strip() if departement else "N/A"
+
+        ville = soup.find("b",string=lambda s: s and "Ville" in s)
+        ville= ville.next_sibling.strip() if ville else "N/A"
+
+        contact = soup.find("b",string=lambda s: s and "Contact" in s)
+        contact= contact.next_sibling.strip() if contact else "N/A"
         
+        telephone = soup.find("font", {"color": "#990000"})
+        telephone = telephone.get_text(strip=True) if telephone else ""
+
         
         data.append({
-            "titre": titre,
-            "description": desription,
-            "lien": lien,
+            "Titre": titre,
+            "Description": desription,
+            "Département": departement,
+            "Ville": ville,
+            "Contact": contact,
+            "Téléphone": telephone,
+            "Source": lien,
         })
 
     for item in data:
-        print(item["titre"])
-        print(item["lien"])
-        print(item["description"])
+        print(item["Titre"])
+        print(item["Source"])
+        print(item["Description"])
+        print(item["Département"])
+        print(item["Ville"])
+        print(item["Contact"])
+        print(item["Téléphone"])
         print("-" * 40)
             
     return data
