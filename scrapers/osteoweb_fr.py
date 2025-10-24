@@ -1,71 +1,49 @@
 import requests
 from bs4 import BeautifulSoup
-
+from api.localisation import get_ville_info
 
 def get_remplacement_links():
     url = "https://www.osteoweb.fr/remplacement/"
     r = requests.get(url)
     soup = BeautifulSoup(r.text, "html.parser")
-
     liens = set()
-
     for a in soup.select('a[href^="https://www.osteoweb.fr/"]'):
         href = a.get("href")
         if href and "remplacement" in href and href.endswith(".htm"):
             liens.add(href)
-
     return list(liens)
 
-
-
-
- 
 def get_info_remplacement():
-    liens  = get_remplacement_links()
-
+    liens = get_remplacement_links()
     data = []
-
     for lien in liens:
         r = requests.get(lien)
         soup = BeautifulSoup(r.text, "html.parser")
 
-        titre = soup.find("title").get_text()
-        desription = soup.find("meta", {"name": "description"})["content"]
+        titre = soup.find("title").get_text(strip=True)
+        description = soup.find("meta", {"name": "description"})["content"]
 
-        departement = soup.find("b",string=lambda s: s and "Localisation" in s)
-        departement= departement.next_sibling.strip() if departement else "N/A"
+        ville_tag = soup.find("b", string=lambda s: s and "Ville" in s)
+        ville = ville_tag.next_sibling.strip() if ville_tag else "N/A"
 
-        ville = soup.find("b",string=lambda s: s and "Ville" in s)
-        ville= ville.next_sibling.strip() if ville else "N/A"
+        departement, region, _ = get_ville_info(ville)
+        departement = departement or "N/A"
+        region = region or "N/A"
 
-        contact = soup.find("b",string=lambda s: s and "Contact" in s)
-        contact= contact.next_sibling.strip() if contact else "N/A"
+        contact_tag = soup.find("b", string=lambda s: s and "Contact" in s)
+        contact = contact_tag.next_sibling.strip() if contact_tag else "N/A"
         
-        telephone = soup.find("font", {"color": "#990000"})
-        telephone = telephone.get_text(strip=True) if telephone else ""
+        tel_tag = soup.find("font", {"color": "#990000"})
+        telephone = tel_tag.get_text(strip=True) if tel_tag else "N/A"
 
-        
         data.append({
             "Titre": titre,
-            "Description": desription,
-            "Département": departement,
+            "Description": description,
             "Ville": ville,
+            "Département": departement,
+            "Région": region,
             "Contact": contact,
             "Téléphone": telephone,
             "Source": lien,
         })
-
-    for item in data:
-        print(item["Titre"])
-        print(item["Source"])
-        print(item["Description"])
-        print(item["Département"])
-        print(item["Ville"])
-        print(item["Contact"])
-        print(item["Téléphone"])
-        print("-" * 40)
-            
     return data
-
-
-    get_info_remplacement() 
