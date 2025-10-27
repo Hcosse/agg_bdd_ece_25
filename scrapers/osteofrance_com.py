@@ -1,80 +1,130 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime
 from api.localisation import get_ville_info
 
-def scrape_osteopathe_syndicat():
-    base_url = "https://www.osteopathe-syndicat.fr"
-    start_url = f"{base_url}/annonces-osteopathe"
+# Regex pour extraire un numéro de téléphone français
+TEL_REGEX = re.compile(r"(0[1-9](?:[\s.-]?\d{2}){4})", re.MULTILINE)
 
-    r = requests.get(start_url)
+
+def extract_telephone(text: str) -> str:
+    if not text:
+        return ""
+    m = TEL_REGEX.search(text)
+    return m.group(1) if m else ""
+
+
+def get_remplacement_links():
+    url = "https://osteofrance.com/petites-annonces/"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+
     soup = BeautifulSoup(r.text, "html.parser")
+    liens = set()
+    for a in soup.select("table.annonces td.title a[href^='/petite-annonce/']"):
+        href = a.get("href")
+        if href:
+            liens.add("https://osteofrance.com" + href)
 
+    return list(liens)
+
+
+def scrape_osteopathes_de_france():
+    liens = get_remplacement_links()
     annonces = []
 
-    # tous les <li>
-    for li in soup.select("ul.listingAnnonce li"):
+    for lien in liens:
         try:
-            date_bloc = li.select_one("div.date")
-            lignes = date_bloc.get_text(separator="\n", strip=True).split("\n")
-            date_publication = datetime.strptime(lignes[0], "%d/%m/%Y").date().isoformat() if lignes else ""
-            type_offre = lignes[1] if len(lignes) > 1 else ""
-            region = lignes[2] if len(lignes) > 2 else ""
+            r = requests.get(lien, timeout=10)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "html.parser")
 
-            titre_tag = li.select_one("h2 a")
-            titre = titre_tag.get_text(strip=True)
-            lien_annonce = titre_tag["href"]
+            titre_tag = soup.select_one("h1.title")
+            titre = titre_tag.get_text(strip=True) if titre_tag else ""
 
-            r_detail = requests.get(lien_annonce)
-            soup_detail = BeautifulSoup(r_detail.text, "html.parser")
-            description_bloc = soup_detail.select_one("div.texte")
-            description = description_bloc.get_text(separator="\n", strip=True) if description_bloc else ""
+            type_offre = ""
+            m = re.search(
+                r"/(remplacement|collaboration|association|cession|recherche-de-locaux|offre-de-locaux|achat-de-materiel|vente-de-materiel|benevolat|divers)",
+                lien,
+                re.I,
+            )
+            if m:
+                mapping = {
+                    "remplacement": "Remplacement",
+                    "collaboration": "Collaboration",
+                    "association": "Association",
+                    "cession": "Cession de patientèle",
+                    "recherche-de-locaux": "Recherche de locaux",
+                    "offre-de-locaux": "Offre de locaux",
+                    "achat-de-materiel": "Achat de matériel",
+                    "vente-de-materiel": "Vente de matériel",
+                    "benevolat": "Bénévolat",
+                    "divers": "Divers",
+                }
+                type_offre = mapping.get(m.group(1).lower(), m.group(1).capitalize())
+            if not type_offre and titre:
+                for kw, val in [
+                    ("remplacement", "Remplacement"),
+                    ("collaboration", "Collaboration"),
+                    ("cession", "Cession de patientèle"),
+                    ("locaux", "Offre de locaux"),
+                ]:
+                    if kw in titre.lower():
+                        type_offre = val
+                        break
 
-            ville = extract_ville(description)
+            # Description (sans le bloc p.meta)
+            entry = soup.select_one("div.entry-body")
+            if entry:
+                for meta_p in entry.select("p.meta"):
+                    meta_p.decompose()
+                description = entry.get_text(separator="\n", strip=True)
+            else:
+                description = ""
+
+            date_publication = ""
+            time_tag = soup.select_one("time.updated")
+            if time_tag and time_tag.has_attr("datetime"):
+                date_publication = time_tag["datetime"].strip()
+            elif time_tag:
+                date_publication = time_tag.get_text(strip=True)
+
+            ville_tag = soup.select_one("div.address span.uc")
+            ville = ville_tag.get_text(strip=True) if ville_tag else "N/A"
+            ville = ville.title() if ville and ville != "N/A" else ville
+
+            contact_tag = soup.select_one("div.name strong")
+            contact = contact_tag.get_text(" ", strip=True) if contact_tag else ""
+
+            vcard = soup.select_one("div.vcard")
+            telephone = (
+                extract_telephone(vcard.get_text(" ", strip=True)) if vcard else ""
+            )
+            if not telephone:
+                telephone = extract_telephone(description)
+
             departement, region, _ = get_ville_info(ville)
             departement = departement or "N/A"
             region = region or "N/A"
-            telephone = extract_telephone(description)
-            contact = extract_contact(description)
 
-            annonces.append({
-                "titre": titre,
-                "description": description,
-                "ville": ville,
-                "departement": departement,  # enrichir API
-                "region": region,
-                "contact": contact,
-                "telephone": telephone,
-                "source": "osteopathe-syndicat.fr",
-                "lien_annonce": lien_annonce,
-                "date_publication": date_publication,
-                "type_offre": type_offre
-            })
+            annonces.append(
+                {
+                    "titre": titre,
+                    "type_offre": type_offre,
+                    "description": description,
+                    "ville": ville,
+                    "departement": departement,
+                    "region": region,
+                    "contact": contact,
+                    "telephone": telephone,
+                    "lien_annonce": lien,
+                    "date_publication": date_publication,
+                    "source": "osteofrance.com",
+                }
+            )
+
         except Exception as e:
-            print(f"Erreur sur une annonce : {e}")
+            print(f"Erreur sur {lien} : {e}")
             continue
-        for i, annonce in enumerate(annonces, start=1):
-            annonce["id"] = i
+
     return annonces
-
-#extraction via regex
-def extract_telephone(text):
-    match = re.search(r"(0[1-9](?:[\s.-]?\d{2}){4})", text)
-    return match.group(1) if match else ""
-
-def extract_contact(text):
-    match = re.search(r"(Dr|Monsieur|Madame|Mlle|M.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?", text)
-    return match.group(0) if match else ""
-
-def extract_ville(text):
-    match = re.search(r"\b(?:à|sur|près de)\s+([A-Z][a-zéèêëîïôöûü-]+)", text)
-    return match.group(1) if match else ""
-
-
-
-# Test local
-#if __name__ == "__main__":
-    #from pprint import pprint
-    #annonces = scrape_osteopathe_syndicat()
-    #pprint(annonces[:6])

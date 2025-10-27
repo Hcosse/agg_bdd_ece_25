@@ -2,14 +2,18 @@ import requests
 import re
 import unicodedata
 
+
+# Fonction pour générer un slug à partir d'un nom
 def slugify(nom: str) -> str:
     nom = nom.lower()
-    nom = unicodedata.normalize('NFD', nom)
-    nom = nom.encode('ascii', 'ignore').decode('utf-8')
-    nom = re.sub(r'[^a-z0-9]+', '-', nom)
-    nom = nom.strip('-')
+    nom = unicodedata.normalize("NFD", nom)
+    nom = nom.encode("ascii", "ignore").decode("utf-8")
+    nom = re.sub(r"[^a-z0-9]+", "-", nom)
+    nom = nom.strip("-")
     return nom
 
+
+# Obtenir les informations de localisation d'une ville
 def get_ville_info(ville: str):
     try:
         data = requests.get(f"https://geo.api.gouv.fr/communes?nom={ville}").json()
@@ -17,8 +21,16 @@ def get_ville_info(ville: str):
             return None, None, slugify(ville)
         code_dept = data[0].get("codeDepartement")
         code_region = data[0].get("codeRegion")
-        dept_name = requests.get(f"https://geo.api.gouv.fr/departements/{code_dept}").json().get("nom")
-        region_name = requests.get(f"https://geo.api.gouv.fr/regions/{code_region}").json().get("nom")
+        dept_name = (
+            requests.get(f"https://geo.api.gouv.fr/departements/{code_dept}")
+            .json()
+            .get("nom")
+        )
+        region_name = (
+            requests.get(f"https://geo.api.gouv.fr/regions/{code_region}")
+            .json()
+            .get("nom")
+        )
         return dept_name, region_name, slugify(ville)
     except Exception:
         return None, None, slugify(ville)

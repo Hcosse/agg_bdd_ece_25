@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres_agg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pwd
+      POSTGRES_DB: aggregation
+    ports:
+      - "5432:5432"
+    volumes:
+      # Volume pour les données PostgreSQL
+      - pgdata:/var/lib/postgresql/data
+      # Volume monté vers ton dossier local de sortie
+      - "A remplir:/mnt/output"
+
+volumes:
+  pgdata:
