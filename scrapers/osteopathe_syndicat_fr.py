@@ -50,7 +50,8 @@ def scrape_osteopathe_syndicat():
         except Exception as e:
             print(f"Erreur sur une annonce : {e}")
             continue
-
+        for i, annonce in enumerate(annonces, start=1):
+            annonce["id"] = i
     return annonces
 
 #extraction via regex
@@ -66,8 +67,10 @@ def extract_ville(text):
     match = re.search(r"\b(?:à|sur|près de)\s+([A-Z][a-zéèêëîïôöûü-]+)", text)
     return match.group(1) if match else ""
 
+
+
 # Test local
-if __name__ == "__main__":
-    from pprint import pprint
-    annonces = scrape_osteopathe_syndicat()
-    pprint(annonces[:6])
+#if __name__ == "__main__":
+    #from pprint import pprint
+    #annonces = scrape_osteopathe_syndicat()
+    #pprint(annonces[:6])
